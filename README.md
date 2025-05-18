@@ -11,9 +11,11 @@ A smart agricultural support system that recommends the most suitable crops to g
 - 🌐 Scalable architecture with modular backend and responsive frontend.
 
 ---
-![Crop Recommendation](screenshots/Screenshot-2025-05-18-100808.png)
 
-![Forecast Chart](screenshots/Screenshot-18.png)
+## 📸 Screenshots
 
+### 🧠 Crop Recommendation Output
+![Crop Recommendation](https://github.com/suyash242004/Smart-Crop-Recommendation-with-Price-Forecasting/blob/main/Crop%20Recommendation.png?raw=true)
 
-
+### 📈 Price Forecast Graph
+![Forecast Chart](https://github.com/suyash242004/Smart-Crop-Recommendation-with-Price-Forecasting/blob/main/Forecast%20Chart.png?raw=true)
