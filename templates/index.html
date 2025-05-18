@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Agricultural Price Predictor</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='style.css') }}"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  </head>
+  <body>
+ 
+
+<h2>Crop Recommendation System</h2>
+
+<div class="form-row" id="crop-form" style="display: flex; flex-direction: column; width: 300px; margin: auto;">
+  <label for="n">N:</label>
+  <input type="number" id="n" placeholder="Nitrogen"  />
+
+  <label for="p">P:</label>
+  <input type="number" id="p" placeholder="Phosphorus" />
+
+  <label for="k">K:</label>
+  <input type="number" id="k" placeholder="Potassium" />
+
+  <label for="temperature">Temp (°C):</label>
+  <input type="number" id="temperature" placeholder="Temperature" />
+
+  <label for="humidity">Humidity (%):</label>
+  <input type="number" id="humidity" placeholder="Humidity" />
+
+  <label for="ph">pH:</label>
+  <input type="number" id="ph" step="0.1" placeholder="Soil pH" />
+
+  <label for="rainfall">Rainfall (mm):</label>
+  <input type="number" id="rainfall" placeholder="Rainfall" />
+
+  <button  onclick="predictCrop()">Predict Crop</button>
+</div>
+
+<div id="crop-result" style="margin-top: 20px"></div>
+<hr style="margin: 40px 0;" />
+
+<h2>Agricultural Price Predictor</h2>
+
+<div class="form-row">
+  <label for="commodity">Select Commodity:</label>
+  <select id="commodity"></select>
+
+  <label for="district">Select District:</label>
+  <select id="district"></select>
+
+  <label for="market">Select Market:</label>
+  <select id="market"></select>
+
+  <button onclick="predict()">Predict Prices</button>
+</div>
+
+<div id="results" style="margin-top: 20px"></div>
+
+<canvas id="priceChart" width="800" height="400"></canvas>
+
+
+    <script>
+      let chartInstance = null;
+
+      window.onload = function () {
+        fetch("/get_options")
+          .then((res) => res.json())
+          .then((data) => {
+            populateDropdown("commodity", data.commodities);
+          });
+
+        document.getElementById("commodity").onchange = function () {
+          let commodity = this.value;
+          fetch(`/get_options?commodity=${commodity}`)
+            .then((res) => res.json())
+            .then((data) => populateDropdown("district", data.districts));
+        };
+
+        document.getElementById("district").onchange = function () {
+          let commodity = document.getElementById("commodity").value;
+          let district = this.value;
+          fetch(`/get_options?commodity=${commodity}&district=${district}`)
+            .then((res) => res.json())
+            .then((data) => populateDropdown("market", data.markets, true));
+        };
+      };
+
+      function populateDropdown(id, items, allowNone = false) {
+        let select = document.getElementById(id);
+        select.innerHTML = "";
+        if (allowNone) {
+          let option = document.createElement("option");
+          option.value = "";
+          option.text = "All Markets";
+          select.appendChild(option);
+        }
+        items.forEach((item) => {
+          let option = document.createElement("option");
+          option.value = item;
+          option.text = item;
+          select.appendChild(option);
+        });
+      }
+
+      function predict() {
+        const commodity = document.getElementById("commodity").value;
+        const district = document.getElementById("district").value;
+        const market = document.getElementById("market").value || null;
+
+        const data = { commodity, district, market };
+
+        fetch("/predict", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        })
+          .then((res) => res.json())
+          .then((result) => {
+            if (result.error) {
+              document.getElementById("results").innerText = result.error;
+            } else {
+              document.getElementById("results").innerHTML = `
+                        <h3>Predicted Prices (Rs./Quintal):</h3>
+                        <p><strong>Min:</strong> ${result.min_price}</p>
+                        <p><strong>Max:</strong> ${result.max_price}</p>
+                        <p><strong>Modal:</strong> ${result.modal_price}</p>
+                    `;
+            }
+
+            // Fetch and display historical data
+            fetch(
+              `/historical?commodity=${commodity}&district=${district}&market=${market}`
+            )
+              .then((res) => res.json())
+              .then((history) => drawChart(history));
+          });
+      }
+
+      function drawChart(data) {
+        const labels = data.map((row) => row["Price Date"]);
+        const minPrices = data.map((row) => row["Min Price (Rs./Quintal)"]);
+        const maxPrices = data.map((row) => row["Max Price (Rs./Quintal)"]);
+        const modalPrices = data.map((row) => row["Modal Price (Rs./Quintal)"]);
+
+        const ctx = document.getElementById("priceChart").getContext("2d");
+
+        if (chartInstance) chartInstance.destroy(); // Clear old chart
+
+        chartInstance = new Chart(ctx, {
+          type: "line",
+          data: {
+            labels: labels,
+            datasets: [
+              {
+                label: "Min Price",
+                data: minPrices,
+                borderColor: "blue",
+                fill: false,
+              },
+              {
+                label: "Max Price",
+                data: maxPrices,
+                borderColor: "green",
+                fill: false,
+              },
+              {
+                label: "Modal Price",
+                data: modalPrices,
+                borderColor: "orange",
+                fill: false,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              title: {
+                display: true,
+                text: "Historical Prices",
+              },
+            },
+            scales: {
+              x: {
+                title: {
+                  display: true,
+                  text: "Date",
+                },
+              },
+              y: {
+                title: {
+                  display: true,
+                  text: "Price (Rs./Quintal)",
+                },
+              },
+            },
+          },
+        });
+      }
+     
+      function predictCrop() {
+        const data = {
+          N: document.getElementById("n").value,
+          P: document.getElementById("p").value,
+          K: document.getElementById("k").value,
+          temperature: document.getElementById("temperature").value,
+          humidity: document.getElementById("humidity").value,
+          pH: document.getElementById("ph").value,
+          rainfall: document.getElementById("rainfall").value,
+        };
+      
+        fetch("/api/predict_crop", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(data),
+        })
+          .then((res) => res.json())
+          .then((result) => {
+            if (result.error) {
+              document.getElementById("crop-result").innerText = `Error: ${result.error}`;
+            } else {
+              document.getElementById(
+                "crop-result"
+              ).innerHTML = `<h3>Recommended Crop:</h3><p><strong>${result.crop}</strong></p>`;
+            }
+          })
+          .catch((err) => {
+            document.getElementById("crop-result").innerText = `Error: ${err}`;
+          });
+      }
+      
+
+    </script>
+  </body>
+</html>
